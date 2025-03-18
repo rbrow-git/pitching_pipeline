@@ -3,4 +3,5 @@ description: How to use the scrapling tool
 globs: 
 alwaysApply: false
 ---
-[scrapling](mdc:.cursor/rules/scrapling) contains all examples of how to implement scrapling package.
+ANY WEB SCRAPING ACTIVITIES MUST USE THIS PACKAGE [scrapling](mdc:.cursor/rules/scrapling)
+The file contains all examples of how to implement scrapling web scraping/parsing package.

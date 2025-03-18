@@ -1,67 +1,120 @@
-# MLB Pitching Pipeline
+# Baseball Reference Pitcher Data Scraper
 
-A tool for scraping MLB starting pitcher game logs from Baseball Reference.
-
-## Description
-
-This project provides a parallel scraping solution to extract game logs for MLB starting pitchers from [Baseball Reference](https://www.baseball-reference.com/). It collects detailed statistics for each starting pitcher's appearances from 2020 to 2024.
+A modular tool for scraping MLB pitcher game logs from Baseball Reference and storing them in a SQLite database.
 
 ## Features
 
-- Parallel processing for efficient data collection
-- Robust error handling for network issues 
-- Random delays to respect server load
-- Automatically cleans up Selenium processes
-- Saves data to CSV format
+- Scrape pitching game logs for individual or multiple MLB pitchers
+- Store data in a SQLite database for easy querying and analysis
+- Modular design with separate components for scraping, data storage, and utilities
+- Command-line interface with flexible options
+- Handles connection errors and retries with different fetching methods
+
+## Requirements
+
+- Python 3.9+
+- Required Python packages:
+  - scrapling
+  - pandas
+  - argparse
 
 ## Installation
 
-### Prerequisites
+1. Clone this repository or download the source code
+2. Install dependencies:
 
-- Python 3.9 or higher
-- Chrome browser installed
-
-### Setup
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/pitching_pipeline.git
-cd pitching_pipeline
-```
-
-2. Install dependencies using uv (recommended):
-```bash
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv add pandas selenium beautifulsoup4 webdriver-manager tqdm lxml
+uv add scrapling pandas argparse
+uv run scrapling install  # Install browser dependencies
 ```
 
 ## Usage
 
-The main script can be run directly from the notebook or converted to a Python script:
+### Basic Usage
+
+Scrape data for a single player:
 
 ```bash
-uv run python scrape_starting_pitchers_logs.py
+uv run python main.py --player-id snellbl01
 ```
 
-The script will:
-1. Load pitcher IDs from `Starting_Pitchers_IDs.csv`
-2. Scrape game logs for each pitcher for the seasons 2020-2024
-3. Save the combined data to `MLB_Pitcher_Game_Logs.csv`
+Scrape data for multiple players from a CSV file:
 
-## Data Description
+```bash
+uv run python main.py --players-file starting_pitchers_ids.csv
+```
 
-The output CSV contains detailed game logs with the following information:
-- Standard pitching statistics (IP, H, R, ER, BB, SO, etc.)
-- Game metadata (date, opponent, result)
-- Pitcher identification and season
+### Advanced Options
 
-## Troubleshooting
+Specify years to scrape:
 
-If you encounter ChromeDriver issues:
-- Ensure Chrome is up to date
-- Check that webdriver-manager is installed correctly
-- Run the cleanup_selenium() function to clear lingering processes
+```bash
+uv run python main.py --player-id snellbl01 --years 2021 2022 2023
+```
+
+Specify database path:
+
+```bash
+uv run python main.py --player-id snellbl01 --db-path my_baseball_data.db
+```
+
+Limit number of players to process from a file:
+
+```bash
+uv run python main.py --players-file starting_pitchers_ids.csv --max-players 10
+```
+
+## Project Structure
+
+- `main.py`: Entry point with command-line interface
+- `scraper.py`: Functions for scraping data from Baseball Reference
+- `db_utils.py`: Database operations for storing and retrieving data
+- `utils.py`: Utility functions for data loading and manipulation
+
+## Database Schema
+
+The SQLite database contains the following tables:
+
+- `pitching_gamelogs`: Stores individual game statistics for pitchers
+- `players`: Tracks which players have been scraped and when
+
+## Examples
+
+### Scrape a single player and print results
+
+```python
+from scraper import scrape_player
+from db_utils import create_database, store_pitcher_data
+
+# Scrape data for Blake Snell for 2021-2023
+df = scrape_player('snellbl01', [2021, 2022, 2023])
+
+# Store in database
+create_database('baseball.db')
+store_pitcher_data(df, 'snellbl01', 'baseball.db')
+```
+
+### Query data from the database
+
+```python
+import sqlite3
+import pandas as pd
+
+# Connect to the database
+conn = sqlite3.connect('baseball.db')
+
+# Query all games with 10+ strikeouts
+query = """
+SELECT player_id, year, game_date, strikeouts 
+FROM pitching_gamelogs 
+WHERE strikeouts >= 10
+ORDER BY strikeouts DESC
+"""
+
+# Load into pandas DataFrame
+results = pd.read_sql_query(query, conn)
+print(results)
+```
 
 ## License
 

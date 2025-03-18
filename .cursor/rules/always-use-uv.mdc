@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# ALWAYS use uv package manager 
+- You are not allowed to use pip.  
+- REFER ONLY TO OFFICIAL DOCUMENTATION @uv_official
+- This means uv add for packages and uv run for scripts. 
