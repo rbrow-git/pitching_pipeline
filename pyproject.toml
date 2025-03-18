@@ -11,7 +11,13 @@ dependencies = [
     "webdriver-manager",
     "tqdm",
     "lxml",
+    "requests",
     "ipykernel>=6.29.5",
+    "aiohttp",
+    "asyncio-throttle",
+    "backoff",
+    "ujson",
+    "aiolimiter",
 ]
 
 [build-system]
