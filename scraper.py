@@ -14,6 +14,72 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Stats to extract from the game logs
+STATS_TO_EXTRACT = [
+    # Core metadata
+    'career_game_num',
+    'date_game',
+    
+    # Team info
+    'team_ID',
+    'team_homeORaway',  # Home/away indicator - '@' for away games, None for home games
+    'opp_ID',
+    'game_result', 
+    
+    # Basic pitching stats
+    'IP',
+    'H',
+    'R',
+    'ER', 
+    'BB',
+    'SO',
+    'HR',
+    'HBP',
+    
+    # Advanced metrics
+    'earned_run_avg',
+    'fip',
+    'batters_faced',
+    'game_score',
+    
+    # Pitch data
+    'pitches',
+    'strikes_total',
+    'strikes_looking',
+    'strikes_swinging',
+    
+    # Batted ball data
+    'inplay_gb_total',
+    'inplay_fb_total',
+    'inplay_ld',
+    'inplay_pu',
+    'inplay_unk',
+    
+    # Base runners
+    'SB',
+    'CS',
+    'pickoffs',
+    
+    # Opponent batting
+    'AB',
+    '2B',
+    '3B',
+    'IBB',
+    'GIDP',
+    'SF',
+    'ROE',
+    
+    # Win Probability metrics
+    'leverage_index_avg',
+    'wpa_def',
+    'cli_avg',
+    're24_def',
+    
+    # Fantasy
+    'draftkings_points',
+    'fanduel_points',
+]
+
 
 def extract_player_name(page):
     """
@@ -125,7 +191,7 @@ def scrape_year(player_id, year, retry_limit=3, retry_delay=2):
                 # Skip header rows
                 if row.has_class('thead') or row.has_class('spacer'):
                     continue
-                
+                    
                 # Skip if no data-stat elements
                 cells = row.css('td[data-stat]')
                 if not cells:
@@ -154,10 +220,23 @@ def scrape_year(player_id, year, retry_limit=3, retry_delay=2):
                                 formatted_date = f"{year}-{month}-{day}"
                                 row_data[data_stat] = formatted_date
                             else:
-                                # Fallback to text which might be "Apr 16"
-                                row_data[data_stat] = cell.text.clean()
+                                # If couldn't extract from href but link exists, use link text with year
+                                link_text = date_link.text.clean()
+                                if link_text and link_text.lower() != 'none':
+                                    row_data[data_stat] = f"{year}-{link_text}"
+                                else:
+                                    # Use placeholder with year from function argument
+                                    row_data[data_stat] = f"{year}-01-01"
+                                    logger.warning(f"Using placeholder date for game in {year}")
                         else:
-                            row_data[data_stat] = cell.text.clean()
+                            # If no link at all, use cell text or placeholder
+                            cell_text = cell.text.clean()
+                            if cell_text and cell_text.lower() != 'none':
+                                row_data[data_stat] = f"{year}-{cell_text}"
+                            else:
+                                # Use placeholder date with year
+                                row_data[data_stat] = f"{year}-01-01"
+                                logger.warning(f"Using placeholder date for game in {year}")
                     # Special handling for team_ID and opp_ID fields
                     elif data_stat in ['team_ID', 'opp_ID']:
                         # Try to get the team code from the link text first
@@ -177,10 +256,18 @@ def scrape_year(player_id, year, retry_limit=3, retry_delay=2):
                             # If no link, try cell text
                             text = cell.text.clean()
                             row_data[data_stat] = text if text and text.lower() != 'none' else None
+                    # Special handling for team_homeORaway field - represents home/away games
+                    elif data_stat == 'team_homeORaway':
+                        # '@' means away game, empty/None means home game
+                        text = cell.text.clean()
+                        if text == '@':
+                            row_data[data_stat] = '@'  # Away game
+                        else:
+                            row_data[data_stat] = None  # Home game
                     else:
                         # For all other cells, just extract the text
                         row_data[data_stat] = cell.text.clean()
-                
+                        
                 data.append(row_data)
             
             # Create DataFrame

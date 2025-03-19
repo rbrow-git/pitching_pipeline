@@ -41,6 +41,8 @@ column_mapping = {
     'fip': 'fip',
     'batters_faced': 'batters_faced',
     'game_score': 'game_score',
+    'career_game_num': 'career_game_num',
+    'team_homeORaway': 'road_indicator',
     
     # Pitch data
     'pitches': 'pitches',
@@ -73,7 +75,6 @@ column_mapping = {
     'leverage_index_avg': 'average_leverage_index',
     'wpa_def': 'win_probability_added',
     'cli_avg': 'clutch_leverage_index',
-    'cwpa_def': 'championship_win_probability_added',
     're24_def': 'run_expectancy_24',
     
     # Fantasy
@@ -118,6 +119,7 @@ def create_database(db_path="baseball.db", force_recreate=False):
             home_runs INTEGER,
             hit_by_pitch INTEGER,
             era REAL,
+            fip REAL,
             batters_faced INTEGER,
             pitches INTEGER,
             strikes INTEGER,
@@ -142,10 +144,11 @@ def create_database(db_path="baseball.db", force_recreate=False):
             win_probability_added REAL,
             average_leverage_index REAL,
             clutch_leverage_index REAL,
-            championship_win_probability_added REAL,
             run_expectancy_24 REAL,
             draftkings_points REAL,
             fanduel_points REAL,
+            career_game_num INTEGER,
+            road_indicator INTEGER,
             UNIQUE(player_id, date_game)
         )
         """)
@@ -204,6 +207,46 @@ def store_pitcher_data(df, player_id, db_path="baseball.db", player_name=None):
                         df_copy[col] = df_copy[col].astype('Int64')
                     except (ValueError, TypeError):
                         logger.warning(f"Could not convert column {col} to Int64, leaving as float")
+        
+        # Fix missing dates - replace empty or None values in date_game column
+        if 'date_game' in df_copy.columns:
+            # Get years for each row to use in placeholder dates
+            years = df_copy['year'].fillna(datetime.now().year).astype(int)
+            
+            # Print date values for debugging
+            logger.debug(f"Date values for {player_id} before cleaning: {df_copy['date_game'].tolist()[:5]}...")
+            
+            # Create a mask for missing dates
+            missing_dates = df_copy['date_game'].isna() | (df_copy['date_game'] == '') | (df_copy['date_game'].str.lower() == 'none')
+            
+            # For rows with missing dates, create placeholder dates using the year from that row
+            for idx in df_copy[missing_dates].index:
+                year = years.loc[idx]
+                df_copy.loc[idx, 'date_game'] = f"{year}-01-01"
+            
+            # Additional check - ensure ALL dates have a value
+            df_copy['date_game'] = df_copy.apply(
+                lambda row: f"{row['year']}-01-01" if pd.isna(row['date_game']) or row['date_game'] == '' 
+                else row['date_game'], 
+                axis=1
+            )
+            
+            # Log how many dates needed fixing
+            num_fixed = missing_dates.sum()
+            if num_fixed > 0:
+                logger.warning(f"Fixed {num_fixed} missing date values for {player_id}")
+            
+            # Print date values for debugging
+            logger.debug(f"Date values for {player_id} after cleaning: {df_copy['date_game'].tolist()[:5]}...")
+        
+        # Handle road_indicator (convert non-null values to 1)
+        if 'road_indicator' in df_copy.columns:
+            logger.debug(f"Road indicator values before conversion: {df_copy['road_indicator'].tolist()[:5]}...")
+            # Convert non-null values to 1 (indicating road game)
+            df_copy['road_indicator'] = df_copy['road_indicator'].apply(
+                lambda x: 1 if pd.notna(x) and x == '@' else 0
+            )
+            logger.debug(f"Road indicator values after conversion: {df_copy['road_indicator'].tolist()[:5]}...")
         
         # Get only the columns that match the database schema
         conn = sqlite3.connect(db_path)
