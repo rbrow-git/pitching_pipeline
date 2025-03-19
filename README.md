@@ -2,12 +2,34 @@
 
 A tool for scraping MLB pitcher statistics and team batting statistics, and storing them in a SQLite database.
 
+## Table of Contents
+- [Baseball Pitching Pipeline](#baseball-pitching-pipeline)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Project Structure](#project-structure)
+  - [Installation](#installation)
+  - [Usage](#usage)
+    - [Process Flow Diagram](#process-flow-diagram)
+    - [Scraping Pitcher Game Logs](#scraping-pitcher-game-logs)
+    - [Scraping Team Batting Stats](#scraping-team-batting-stats)
+    - [Environment Variables](#environment-variables)
+  - [Input File Format](#input-file-format)
+  - [Querying the Database](#querying-the-database)
+    - [Basic Queries](#basic-queries)
+  - [Development](#development)
+    - [Running Scripts](#running-scripts)
+  - [Extending the Pipeline](#extending-the-pipeline)
+    - [Adding a New Tool](#adding-a-new-tool)
+    - [Example: Adding a Player Career Stats Tool](#example-adding-a-player-career-stats-tool)
+
 ## Overview
 
 This project scrapes various baseball statistics from Baseball Reference and stores them in a structured SQLite database for analysis. The main components are:
 
 1. **Pitcher Game Logs**: Scrape individual pitcher game logs from player pages
 2. **Team Batting Stats**: Scrape team batting statistics
+
+All web scraping is performed using the `scrapling` package, ensuring reliable and maintainable data collection.
 
 ## Project Structure
 
@@ -16,6 +38,7 @@ pitching_pipeline/
 ├── src/
 │   ├── cli/                     # Unified command-line interface
 │   │   ├── __init__.py
+│   │   ├── README.md            # CLI documentation
 │   │   └── main.py              # Main CLI entry point with subcommands
 │   ├── core/                    # Core business logic
 │   │   ├── db/                  # Database package
@@ -25,11 +48,19 @@ pitching_pipeline/
 │   │   │   ├── pitcher_utils.py # Pitcher data storage/retrieval
 │   │   │   ├── team_utils.py    # Team data storage/retrieval
 │   │   │   └── database_manager.py # Unified database interface
+│   │   ├── logging/             # Logging configuration
+│   │   │   ├── __init__.py
+│   │   │   └── config.py        # Logging setup
+│   │   ├── __init__.py
+│   │   ├── README.md            # Core module documentation
 │   │   ├── db_manager.py        # High-level database operations
+│   │   ├── db_utils.py          # Additional database utilities
 │   │   ├── gamelog_scraper.py   # Scraper for pitcher game logs
 │   │   ├── player_utils.py      # Player data utilities
 │   │   └── team_stats_scraper.py # Scraper for team batting stats
 │   ├── data/                    # Input data files
+│   │   ├── __init__.py
+│   │   ├── README.md            # Data documentation
 │   │   ├── starting_pitchers_ids.csv  # Main input file with player IDs
 │   │   └── test_ids.csv              # Test input file with few player IDs
 │   ├── docs/                    # Documentation
@@ -40,19 +71,13 @@ pitching_pipeline/
 └── README.md                    # This file
 ```
 
-## Getting Started for Non-Python Users
-
-If you're new to Python, here's a step-by-step guide to help you use this tool:
-
-### 1. Prerequisites
+## Installation
 
 This project uses the `uv` package manager instead of pip. Make sure you have:
 
 - Python 3.6 or higher installed
 - `uv` package manager installed
 - Git installed (to clone the repository)
-
-### 2. Installation
 
 ```bash
 # 1. Clone the repository
@@ -64,19 +89,11 @@ uv add pandas
 uv add scrapling
 ```
 
-### 3. Basic Usage
+## Usage
 
-The project has a unified command-line interface that makes it easy to run different operations:
+The project has a unified command-line interface that makes it easy to run different operations.
 
-```bash
-# Scrape pitcher game logs
-uv run src/cli/main.py pitchers
-
-# Scrape team batting stats
-uv run src/cli/main.py teams
-```
-
-### 4. Process Flow Diagram
+### Process Flow Diagram
 
 ```
 ┌──────────────┐       ┌──────────────┐       ┌──────────────┐       ┌──────────────┐
@@ -85,16 +102,6 @@ uv run src/cli/main.py teams
 │  src/data/   │       │  src/core/   │       │  src/core/db │       │ (SQL queries)│
 └──────────────┘       └──────────────┘       └──────────────┘       └──────────────┘
 ```
-
-### 5. Understanding the Folders
-
-- `src/cli/`: Contains the unified command-line interface
-- `src/core/`: Contains the core business logic for scraping and database operations
-- `src/data/`: Contains input CSV files with player IDs
-- `src/docs/`: Contains documentation for using the database
-- `src/utils/`: Contains general-purpose utility functions
-
-## Usage
 
 ### Scraping Pitcher Game Logs
 
@@ -142,6 +149,20 @@ uv run src/cli/main.py teams --db-path my_database.db
 
 # Enable verbose logging
 uv run src/cli/main.py teams --verbose
+
+# Recreate the database tables (will delete existing data)
+uv run src/cli/main.py teams --reset-db
+```
+
+### Environment Variables
+
+You can control certain aspects of the application using environment variables:
+
+- `BASEBALL_VERBOSE`: Set to "1", "true", "yes", or "on" to enable verbose logging without using the `--verbose` flag
+
+```bash
+# Enable verbose logging using environment variable
+BASEBALL_VERBOSE=1 uv run src/cli/main.py pitchers
 ```
 
 ## Input File Format
@@ -160,13 +181,48 @@ degroja01
 
 After creating the database, you can query it using SQLite directly. See the [Database Query Guide](src/docs/README_QUERY.md) for examples and reference SQL queries.
 
+### Basic Queries
+
+```bash
+# Open the SQLite database
+sqlite3 baseball.db
+
+# List all tables
+.tables
+
+# Show schema for a table
+.schema pitcher_game_logs
+
+# Example query: Get all games for a specific pitcher
+SELECT * FROM pitcher_game_logs WHERE player_id = 'degroja01';
+
+# Example query: Get team batting stats for a specific year
+SELECT * FROM team_batting_stats WHERE year = 2023;
+```
+
 ## Development
 
 This project uses the uv package manager instead of pip. To install dependencies:
 
 ```bash
+# NEVER use pip - always use uv
 uv add pandas
 uv add scrapling
+```
+
+For development, you may want to install additional packages:
+
+```bash
+uv add pytest # For running tests
+uv add black # For code formatting
+```
+
+### Running Scripts
+
+To run any script in the project:
+
+```bash
+uv run path/to/script.py
 ```
 
 ## Extending the Pipeline
