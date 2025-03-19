@@ -5,14 +5,15 @@ Module for scraping baseball-reference.com game logs for pitchers
 
 from scrapling import StealthyFetcher
 import pandas as pd
-import logging
 import time
 import re
 from datetime import datetime
+from io import StringIO
+from src.core.logging.config import get_logger
+import logging
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Get logger for this module
+logger = get_logger(__name__)
 
 # Stats to extract from the game logs
 STATS_TO_EXTRACT = [
@@ -102,7 +103,7 @@ def extract_player_name(page):
                 name_elem = last_item.css_first('[itemprop="name"]')
                 if name_elem:
                     player_name = name_elem.text.clean()
-                    logger.info(f"Extracted player name from breadcrumbs: {player_name}")
+                    logger.debug(f"Extracted player name from breadcrumbs: {player_name}")
                     return player_name
         
         # Fallback method using h1 with Game Logs text
@@ -112,7 +113,7 @@ def extract_player_name(page):
                 player_part = h1_text.split('Game Logs')[0].strip()
                 # Remove any trailing year or characters
                 player_part = re.sub(r'\d+\s*$', '', player_part).strip()
-                logger.info(f"Extracted player name from h1: {player_part}")
+                logger.debug(f"Extracted player name from h1: {player_part}")
                 return player_part
             
         logger.warning("Could not extract player name from page")
@@ -138,7 +139,7 @@ def scrape_year(player_id, year, retry_limit=3):
     url = f"https://www.baseball-reference.com/players/gl.fcgi?id={player_id}&t=p&year={year}"
     
     # Initialize the fetcher
-    fetcher = StealthyFetcher(delay=(2, 5), timeout=10)
+    fetcher = StealthyFetcher()
     
     attempts = 0
     while attempts < retry_limit:
@@ -155,12 +156,12 @@ def scrape_year(player_id, year, retry_limit=3):
     
         # Extract player name from the page title
         player_name = None
-        title_match = re.search(r'<title>(.+?) MLB Pitcher Game Log', response)
+        title_match = re.search(r'<title>(.+?) MLB Pitcher Game Log', str(response.html_content))
         if title_match:
             player_name = title_match.group(1).strip()
         
         # Look for the standard game log table
-        game_log_match = re.search(r'(<table[^>]*?id="pitching_gamelogs"[^>]*?>.*?</table>)', response, re.DOTALL)
+        game_log_match = re.search(r'(<table[^>]*?id="pitching_gamelogs"[^>]*?>.*?</table>)', str(response.html_content), re.DOTALL)
         
         if not game_log_match:
             logger.debug(f"No game log table found for {player_id} in {year}")
@@ -171,7 +172,7 @@ def scrape_year(player_id, year, retry_limit=3):
         
         try:
             # Use pandas to parse the HTML table
-            dfs = pd.read_html(game_log_html)
+            dfs = pd.read_html(StringIO(game_log_html))
             
             if not dfs or len(dfs) == 0:
                 logger.warning(f"No data found in game log table for {player_id} in {year}")
@@ -183,10 +184,10 @@ def scrape_year(player_id, year, retry_limit=3):
             df = process_game_log_df(df, player_id, year)
             
             if df is not None and not df.empty:
-                logger.info(f"Successfully scraped {len(df)} games for {player_id} in {year}")
+                logger.debug(f"Successfully scraped {len(df)} games for {player_id} in {year}")
                 
                 # Log the first game to verify data
-                if not df.empty:
+                if not df.empty and logger.isEnabledFor(logging.DEBUG):
                     first_game = df.iloc[0].to_dict()
                     logger.debug(f"First game sample: {first_game}")
                 
@@ -194,7 +195,8 @@ def scrape_year(player_id, year, retry_limit=3):
         
         except Exception as e:
             logger.error(f"Error processing game log for {player_id} in {year}: {str(e)}")
-            logger.debug(f"HTML snippet: {game_log_html[:500]}...")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"HTML snippet: {game_log_html[:500]}...")
             time.sleep(2 ** attempts)  # Exponential backoff
             continue  # Try again
     

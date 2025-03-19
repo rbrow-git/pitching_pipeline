@@ -3,12 +3,11 @@
 Utilities for working with player data
 """
 
-import logging
 import pandas as pd
+from src.core.logging.config import get_logger
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Get logger for this module
+logger = get_logger(__name__)
 
 def load_player_ids(filepath):
     """

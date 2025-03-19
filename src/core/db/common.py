@@ -7,12 +7,11 @@ import sqlite3
 import os
 import pandas as pd
 import numpy as np
-import logging
+from src.core.logging.config import get_logger
 from datetime import datetime
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Get logger for this module
+logger = get_logger(__name__)
 
 # Define column mapping between scraped data and database
 pitcher_column_mapping = {

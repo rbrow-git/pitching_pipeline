@@ -4,14 +4,14 @@ Module for scraping baseball-reference.com team batting statistics
 """
 
 import pandas as pd
-import logging
+from src.core.logging.config import get_logger
 from scrapling import StealthyFetcher
 import re
 from datetime import datetime
+import time
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Get logger for this module
+logger = get_logger(__name__)
 
 def scrape_team_stats(year=None, retry_limit=3):
     """

@@ -52,36 +52,24 @@ def store_pitcher_data(df, player_id, db_path="baseball.db", player_name=None):
                     except (ValueError, TypeError):
                         logger.warning(f"Could not convert column {col} to Int64, leaving as float")
         
-        # Fix missing dates - replace empty or None values in date_game column
+        # Handle missing dates - filter out rows with missing date values instead of setting defaults
         if 'date_game' in df_copy.columns:
-            # Get years for each row to use in placeholder dates
-            years = df_copy['year'].fillna(datetime.now().year).astype(int)
-            
             # Print date values for debugging
-            logger.debug(f"Date values for {player_id} before cleaning: {df_copy['date_game'].tolist()[:5]}...")
+            logger.debug(f"Date values for {player_id} before filtering: {df_copy['date_game'].tolist()[:5]}...")
             
             # Create a mask for missing dates
             missing_dates = df_copy['date_game'].isna() | (df_copy['date_game'] == '') | (df_copy['date_game'].str.lower() == 'none')
             
-            # For rows with missing dates, create placeholder dates using the year from that row
-            for idx in df_copy[missing_dates].index:
-                year = years.loc[idx]
-                df_copy.loc[idx, 'date_game'] = f"{year}-01-01"
-            
-            # Additional check - ensure ALL dates have a value
-            df_copy['date_game'] = df_copy.apply(
-                lambda row: f"{row['year']}-01-01" if pd.isna(row['date_game']) or row['date_game'] == '' 
-                else row['date_game'], 
-                axis=1
-            )
-            
-            # Log how many dates needed fixing
-            num_fixed = missing_dates.sum()
-            if num_fixed > 0:
-                logger.warning(f"Fixed {num_fixed} missing date values for {player_id}")
-            
+            # Count missing dates
+            num_missing = missing_dates.sum()
+            if num_missing > 0:
+                logger.warning(f"Filtering out {num_missing} rows with missing date values for {player_id}")
+                
+                # Filter out rows with missing dates
+                df_copy = df_copy[~missing_dates]
+                
             # Print date values for debugging
-            logger.debug(f"Date values for {player_id} after cleaning: {df_copy['date_game'].tolist()[:5]}...")
+            logger.debug(f"Date values for {player_id} after filtering: {df_copy['date_game'].tolist()[:5]}...")
         
         # Handle road_indicator (convert non-null values to 1)
         if 'road_indicator' in df_copy.columns:
@@ -91,6 +79,14 @@ def store_pitcher_data(df, player_id, db_path="baseball.db", player_name=None):
                 lambda x: 1 if pd.notna(x) and x == '@' else 0
             )
             logger.debug(f"Road indicator values after conversion: {df_copy['road_indicator'].tolist()[:5]}...")
+        
+        # Filter out summary/header rows (where team_id is "Tm" or opponent_id is "Opp")
+        if 'team_id' in df_copy.columns and 'opponent_id' in df_copy.columns:
+            original_len = len(df_copy)
+            df_copy = df_copy[~((df_copy['team_id'] == 'Tm') | (df_copy['opponent_id'] == 'Opp'))]
+            filtered_len = len(df_copy)
+            if original_len > filtered_len:
+                logger.info(f"Filtered out {original_len - filtered_len} summary/header rows for {player_id}")
         
         # Get only the columns that match the database schema
         conn = sqlite3.connect(db_path)
@@ -113,11 +109,47 @@ def store_pitcher_data(df, player_id, db_path="baseball.db", player_name=None):
         
         df_filtered = df_copy[available_columns]
         
+        # Drop duplicates based on player_id, date_game, and year to avoid removing games from different years
+        if 'player_id' in df_filtered.columns and 'date_game' in df_filtered.columns:
+            # If we have a year column, include it in the duplicate detection
+            if 'year' in df_filtered.columns:
+                old_len = len(df_filtered)
+                df_filtered = df_filtered.drop_duplicates(subset=['player_id', 'date_game', 'year'])
+                new_len = len(df_filtered)
+                if old_len > new_len:
+                    logger.info(f"Dropped {old_len - new_len} duplicate rows for {player_id} (using player_id, date_game, and year)")
+            else:
+                # Fall back to just player_id and date_game if year is not available
+                old_len = len(df_filtered)
+                df_filtered = df_filtered.drop_duplicates(subset=['player_id', 'date_game'])
+                new_len = len(df_filtered)
+                if old_len > new_len:
+                    logger.info(f"Dropped {old_len - new_len} duplicate rows for {player_id} (using player_id and date_game only)")
+        
         # Print dtypes for debugging
         logger.debug(f"DataFrame column dtypes before SQL insert: {df_filtered.dtypes}")
         
-        # Insert data into database
-        df_filtered.to_sql('pitching_gamelogs', conn, if_exists='append', index=False)
+        # First, delete any existing records with the same player_id
+        try:
+            cursor.execute("DELETE FROM pitching_gamelogs WHERE player_id = ?", (player_id,))
+            deleted_count = cursor.rowcount
+            logger.info(f"Deleted {deleted_count} existing records for {player_id}")
+            
+            # We need to commit the DELETE before inserting to avoid constraint errors
+            conn.commit()
+        except Exception as del_e:
+            logger.error(f"Error deleting existing records for {player_id}: {str(del_e)}")
+            conn.rollback()
+            # Don't return here, continue with INSERT operation
+        
+        # Now insert data into database
+        try:
+            df_filtered.to_sql('pitching_gamelogs', conn, if_exists='append', index=False)
+            logger.info(f"Successfully inserted {len(df_filtered)} rows for {player_id}")
+        except Exception as ins_e:
+            logger.error(f"Error inserting records for {player_id}: {str(ins_e)}")
+            conn.rollback()
+            return False
         
         # Update player information
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
