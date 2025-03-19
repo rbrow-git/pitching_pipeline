@@ -14,51 +14,46 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Header mapping for better column names
-header_mapping = {
-    'date_game': 'Date',
-    'team_ID': 'Team',
-    'opp_ID': 'Opponent',
-    'game_result': 'Result',
-    'IP': 'IP',
-    'H': 'H',
-    'R': 'R',
-    'ER': 'ER',
-    'BB': 'BB',
-    'SO': 'SO',
-    'HR': 'HR',
-    'HBP': 'HBP',
-    'earned_run_avg': 'ERA',
-    'batters_faced': 'BF',
-    'pitches': 'Pit',
-    'strikes_total': 'Str',
-    'strikes_looking': 'StL',
-    'strikes_swinging': 'StS',
-    'inplay_gb_total': 'GB',
-    'inplay_fb_total': 'FB',
-    'inplay_ld': 'LD',
-    'inplay_pu': 'PU',
-    'inplay_unk': 'Unk',
-    'game_score': 'GSc',
-    'inherited_runners': 'IR',
-    'inherited_score': 'IS',
-    'SB': 'SB',
-    'CS': 'CS',
-    'pickoffs': 'PO',
-    'AB': 'AB',
-    '2B': '2B',
-    '3B': '3B',
-    'IBB': 'IBB',
-    'GIDP': 'GDP',
-    'SF': 'SF',
-    'ROE': 'ROE',
-    'leverage_index_avg': 'aLI',
-    'wpa_def': 'WPA',
-    'cli_avg': 'cLI',
-    'cwpa_def': 'cWPA',
-    're24_def': 'RE24',
-    'fip': 'FIP'
-}
+
+def extract_player_name(page):
+    """
+    Extract player name from the Baseball Reference page using breadcrumbs
+    
+    Args:
+        page: The HTML page response from scrapling
+        
+    Returns:
+        str: The player's full name or None if not found
+    """
+    try:
+        # Extract player name from breadcrumbs (most reliable method)
+        breadcrumbs = page.css('div[itemtype*="BreadcrumbList"]')
+        if breadcrumbs:
+            items = breadcrumbs.css('[itemprop="itemListElement"]')
+            # The player name is usually the last breadcrumb item
+            if items and len(items) >= 3:  # Usually has Home > Players > Player Name
+                last_item = items[-1]
+                name_elem = last_item.css_first('[itemprop="name"]')
+                if name_elem:
+                    player_name = name_elem.text.clean()
+                    logger.info(f"Extracted player name from breadcrumbs: {player_name}")
+                    return player_name
+        
+        # Fallback method using h1 with Game Logs text
+        for h1 in page.css('h1'):
+            h1_text = h1.text.clean()
+            if 'Game Logs' in h1_text:
+                player_part = h1_text.split('Game Logs')[0].strip()
+                # Remove any trailing year or characters
+                player_part = re.sub(r'\d+\s*$', '', player_part).strip()
+                logger.info(f"Extracted player name from h1: {player_part}")
+                return player_part
+            
+        logger.warning("Could not extract player name from page")
+        return None
+    except Exception as e:
+        logger.error(f"Error extracting player name: {str(e)}")
+        return None
 
 
 def scrape_year(player_id, year, retry_limit=3, retry_delay=2):
@@ -72,7 +67,7 @@ def scrape_year(player_id, year, retry_limit=3, retry_delay=2):
         retry_delay (int): Delay between retries in seconds
     
     Returns:
-        pandas.DataFrame or None: DataFrame with game logs or None if error
+        tuple: (DataFrame, str) containing game logs and player name or (None, None) if error
     """
     url = f"https://www.baseball-reference.com/players/gl.fcgi?id={player_id}&t=p&year={year}"
     logger.info(f"Fetching data for player {player_id} year {year} from {url}")
@@ -98,11 +93,14 @@ def scrape_year(player_id, year, retry_limit=3, retry_delay=2):
             # Parse HTML content
             page = response
             
+            # Extract player name from the page
+            player_name = extract_player_name(page)
+            
             # Find the main pitching game logs table
             table = page.css_first('#pitching_gamelogs')
             if not table:
                 logger.error(f"Could not find pitching game logs table for {player_id} year {year}")
-                return None
+                return None, player_name
             
             # Extract all rows - we'll filter out the ones we don't want later
             rows = table.css('tr')
@@ -114,7 +112,7 @@ def scrape_year(player_id, year, retry_limit=3, retry_delay=2):
             header_row = table.css_first('thead tr')
             if not header_row:
                 logger.error(f"Could not find header row for {player_id} year {year}")
-                return None
+                return None, player_name
             
             # Extract headers from the header row
             for th in header_row.css('th[data-stat]'):
@@ -194,9 +192,9 @@ def scrape_year(player_id, year, retry_limit=3, retry_delay=2):
             
             if num_games == 0:
                 logger.warning(f"No game data found for {player_id} in {year}")
-                return None
+                return None, player_name
             
-            return df
+            return df, player_name
             
         except Exception as e:
             logger.error(f"Error scraping {player_id} year {year}: {str(e)}")
@@ -204,7 +202,7 @@ def scrape_year(player_id, year, retry_limit=3, retry_delay=2):
             time.sleep(retry_delay)
     
     logger.error(f"Failed to scrape {player_id} year {year} after {retry_limit} attempts")
-    return None
+    return None, None
 
 
 def scrape_player(player_id, years=None):
@@ -213,25 +211,30 @@ def scrape_player(player_id, years=None):
     
     Args:
         player_id (str): Baseball Reference player ID
-        years (list): List of years to scrape, or None for current year
+        years (list): List of years to scrape, or None for years 2021-2024
     
     Returns:
-        pandas.DataFrame or None: Combined DataFrame with game logs or None if error
+        tuple: (DataFrame, str) containing combined game logs and player name, or (None, None) if error
     """
     if not years:
-        years = [datetime.now().year]
+        current_year = datetime.now().year
+        years = list(range(2021, current_year))  # Exclude current year
     
     all_data = []
+    player_name = None
     
     for year in years:
-        df = scrape_year(player_id, year)
+        df, name = scrape_year(player_id, year)
         if df is not None and not df.empty:
             all_data.append(df)
+            # Set player_name if we found it and don't have it yet
+            if name and not player_name:
+                player_name = name
     
     if all_data:
         combined_df = pd.concat(all_data, ignore_index=True)
         logger.info(f"Combined data for {player_id}: {len(combined_df)} games across {len(years)} seasons")
-        return combined_df
+        return combined_df, player_name
     else:
         logger.warning(f"No data found for {player_id}")
-        return None 
+        return None, player_name 

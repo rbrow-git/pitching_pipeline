@@ -54,14 +54,19 @@ def scrape_and_store(player_id, years=None, db_path="baseball.db", player_name=N
     logger.info(f"Scraping data for {player_id}{' (' + player_name + ')' if player_name else ''} for years {years}")
     
     # Scrape the player data
-    df = scrape_player(player_id, years)
+    df, extracted_name = scrape_player(player_id, years)
     
     if df is None or df.empty:
         logger.warning(f"No data found for {player_id}")
         return False
     
+    # Use provided name if available, otherwise use extracted name
+    final_name = player_name if player_name else extracted_name
+    if extracted_name and not player_name:
+        logger.info(f"Using extracted player name: {extracted_name}")
+    
     # Store data in database
-    success = store_pitcher_data(df, player_id, db_path, player_name)
+    success = store_pitcher_data(df, player_id, db_path, final_name)
     if success:
         logger.info(f"Successfully stored data for {player_id} in database")
     else:
@@ -81,7 +86,7 @@ def main():
     
     # Optional arguments
     parser.add_argument('--player-name', type=str, help="Player name (only used with --player-id)")
-    parser.add_argument('--years', type=int, nargs='+', help="Years to scrape (default: current year)")
+    parser.add_argument('--years', type=int, nargs='+', help="Years to scrape (default: 2021-2024)")
     parser.add_argument('--db-path', type=str, default="baseball.db", help="Path to SQLite database")
     parser.add_argument('--skip-existing', action='store_true', help="Skip players already in database")
     parser.add_argument('--limit', type=int, help="Limit number of players to scrape")
@@ -106,7 +111,7 @@ def main():
         logger.info(f"Found {len(stored_players)} players already in database")
     
     # Determine which years to scrape
-    years = args.years if args.years else [datetime.now().year]
+    years = args.years if args.years else list(range(2021, 2025))  # Default to 2021-2024
     
     # Handle single player
     if args.player_id:
