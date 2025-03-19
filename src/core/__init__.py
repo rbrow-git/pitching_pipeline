@@ -11,7 +11,7 @@ Modules:
 
 from .gamelog_scraper import scrape_player, scrape_year
 from .team_stats_scraper import scrape_team_stats, save_team_stats
-from .db_manager import scrape_and_store, scrape_and_store_team_stats, initialize_database
+from .scraper_manager import scrape_and_store, scrape_and_store_team_stats, initialize_database
 from .player_utils import load_player_ids, filter_players
 
 __all__ = [

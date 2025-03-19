@@ -15,7 +15,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 # Import the core functionality
-from src.core.db_manager import scrape_and_store, scrape_and_store_team_stats, initialize_database
+from src.core.scraper_manager import scrape_and_store, scrape_and_store_team_stats, initialize_database
 from src.core.player_utils import load_player_ids, filter_players
 from src.core.logging.config import setup_logging, get_logger
 

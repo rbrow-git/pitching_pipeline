@@ -53,7 +53,7 @@ pitching_pipeline/
 │   │   │   └── config.py        # Logging setup
 │   │   ├── __init__.py
 │   │   ├── README.md            # Core module documentation
-│   │   ├── db_manager.py        # High-level database operations
+│   │   ├── scraper_manager.py        # High-level database operations
 │   │   ├── db_utils.py          # Additional database utilities
 │   │   ├── gamelog_scraper.py   # Scraper for pitcher game logs
 │   │   ├── player_utils.py      # Player data utilities
@@ -75,7 +75,7 @@ pitching_pipeline/
 
 This project uses the `uv` package manager instead of pip. Make sure you have:
 
-- Python 3.6 or higher installed
+- Python 3.9 or higher installed
 - `uv` package manager installed
 - Git installed (to clone the repository)
 
@@ -300,7 +300,7 @@ Follow these steps to add a new scraping tool that creates a new table in the da
    ```
 
 5. **Add High-Level Functions**
-   - Add high-level functions to `src/core/db_manager.py`
+   - Add high-level functions to `src/core/scraper_manager.py`
 
    ```python
    def scrape_and_store_your_data(param1, param2, db_path="baseball.db"):
@@ -362,10 +362,21 @@ CREATE TABLE IF NOT EXISTS career_stats (
 # 2. In your_scraper.py
 def scrape_career_stats(player_id):
     """Scrape career statistics for a player"""
-    # Implementation
+    # Implementation (Simplified example – replace with actual scraping logic)
+    # This example simply creates dummy data.
+    data = {
+        'player_id': [player_id],
+        'Seasons': [10],
+        'G': [200],
+        'IP': [1500.0],
+        'W': [120],
+        'L': [80],
+        'ERA': [3.50],
+    }
+    df = pd.DataFrame(data)
     return df
 
-# 3. In CLI
+# 3. In CLI (e.g., in src/cli/main.py)
 parser_career = subparsers.add_parser("career", help="Scrape player career statistics")
 parser_career.add_argument("--player-id", required=True, help="Player ID to scrape")
 parser_career.set_defaults(func=handle_career)
@@ -373,6 +384,7 @@ parser_career.set_defaults(func=handle_career)
 def handle_career(args):
     """Handle career stats command"""
     success = scrape_and_store_career_stats(args.player_id, args.db_path)
+    logger.info(f"Career stats scraping {'successful' if success else 'failed'}")
     return 0 if success else 1
 ```
 
