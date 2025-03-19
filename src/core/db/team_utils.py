@@ -5,7 +5,10 @@ Utilities for storing and retrieving team statistics
 
 import sqlite3
 import pandas as pd
-from .common import logger, team_column_mapping
+from .column_mapping import team_column_mapping
+from src.core.logging.config import get_logger
+
+logger = get_logger(__name__)
 
 def store_team_stats(df, db_path="baseball.db"):
     """

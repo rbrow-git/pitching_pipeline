@@ -145,36 +145,3 @@ class DatabaseManager:
 
 # Create a singleton instance for easy import
 db_manager = DatabaseManager()
-
-# Functions to maintain backwards compatibility
-def initialize_database(db_path="baseball.db", force_recreate=False):
-    """
-    Initialize the database and return its path - convenience function
-    
-    Args:
-        db_path (str): Path to database
-        force_recreate (bool): Whether to recreate the database if it exists
-        
-    Returns:
-        str: Path to database
-    """
-    # Use a temporary DatabaseManager instance with the specified path
-    manager = DatabaseManager(db_path)
-    return manager.initialize_database(force_recreate=force_recreate)
-
-def connect_to_database(db_path="baseball.db"):
-    """
-    Connect to the database and return a connection
-    
-    Args:
-        db_path (str): Path to database
-        
-    Returns:
-        Connection: SQLite database connection
-    """
-    try:
-        conn = sqlite3.connect(db_path)
-        return conn
-    except sqlite3.Error as e:
-        logger.error(f"Error connecting to database: {e}")
-        return None 

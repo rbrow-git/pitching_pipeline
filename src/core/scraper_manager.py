@@ -9,7 +9,7 @@ baseball data, using the unified DatabaseManager.
 import os
 import pandas as pd
 from src.core.logging.config import get_logger
-from src.core.db.database_manager import DatabaseManager, connect_to_database, initialize_database
+from src.core.db.database_manager import DatabaseManager
 from datetime import datetime
 
 # Import the scrapers
@@ -102,7 +102,6 @@ def scrape_and_store_team_stats(years=None, db_path="baseball.db"):
     # Return true if at least one year was successful
     return success_count > 0
 
-# Re-export the initialize_database function for backward compatibility
 # This function now comes from the DatabaseManager
 
 def get_players_in_database(db_path="baseball.db"):

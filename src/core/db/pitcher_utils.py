@@ -6,7 +6,10 @@ Utilities for storing and retrieving pitcher data
 import sqlite3
 import pandas as pd
 from datetime import datetime
-from .common import logger, pitcher_column_mapping
+from .column_mapping import pitcher_column_mapping
+from src.core.logging.config import get_logger
+
+logger = get_logger(__name__)
 
 def store_pitcher_data(df, player_id, db_path="baseball.db", player_name=None):
     """
