@@ -1,182 +1,26 @@
 #!/usr/bin/env python3
 """
-Database utilities for storing pitcher game logs in SQLite
+Utilities for storing and retrieving pitcher data
 """
 
 import sqlite3
-import os
 import pandas as pd
-import numpy as np
-import logging
 from datetime import datetime
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-# Define column mapping between scraped data and database
-column_mapping = {
-    # Core metadata
-    'player_id': 'player_id',
-    'year': 'year',
-    'date_game': 'date_game',
-    
-    # Team info
-    'team_ID': 'team_id',
-    'opp_ID': 'opponent_id',
-    'game_result': 'game_result',
-    
-    # Basic pitching stats
-    'IP': 'innings_pitched',
-    'H': 'hits',
-    'R': 'runs',
-    'ER': 'earned_runs',
-    'BB': 'walks',
-    'SO': 'strikeouts',
-    'HR': 'home_runs',
-    'HBP': 'hit_by_pitch',
-    
-    # Advanced metrics
-    'earned_run_avg': 'era',
-    'fip': 'fip',
-    'batters_faced': 'batters_faced',
-    'game_score': 'game_score',
-    'career_game_num': 'career_game_num',
-    'team_homeORaway': 'road_indicator',
-    
-    # Pitch data
-    'pitches': 'pitches',
-    'strikes_total': 'strikes',
-    'strikes_looking': 'strikes_looking',
-    'strikes_swinging': 'strikes_swinging',
-    
-    # Batted ball data
-    'inplay_gb_total': 'ground_balls',
-    'inplay_fb_total': 'fly_balls',
-    'inplay_ld': 'line_drives',
-    'inplay_pu': 'pop_ups',
-    'inplay_unk': 'unknown_batted_balls',
-    
-    # Base runners
-    'SB': 'stolen_bases',
-    'CS': 'caught_stealing',
-    'pickoffs': 'pickoffs',
-    
-    # Opponent batting
-    'AB': 'at_bats',
-    '2B': 'doubles',
-    '3B': 'triples',
-    'IBB': 'intentional_walks',
-    'GIDP': 'grounded_into_double_play',
-    'SF': 'sacrifice_flies',
-    'ROE': 'reached_on_error',
-    
-    # Win Probability metrics
-    'leverage_index_avg': 'average_leverage_index',
-    'wpa_def': 'win_probability_added',
-    'cli_avg': 'clutch_leverage_index',
-    're24_def': 'run_expectancy_24',
-    
-    # Fantasy
-    'draftkings_points': 'draftkings_points',
-    'fanduel_points': 'fanduel_points',
-}
-
-
-def create_database(db_path="baseball.db", force_recreate=False):
-    """Create SQLite database and tables if they don't exist"""
-    db_path = os.path.abspath(db_path)
-    
-    # Create the directory if it doesn't exist
-    os.makedirs(os.path.dirname(db_path) or '.', exist_ok=True)
-    
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # Drop tables if force_recreate is True
-        if force_recreate:
-            cursor.execute("DROP TABLE IF EXISTS pitching_gamelogs")
-            cursor.execute("DROP TABLE IF EXISTS players")
-            logger.info("Dropped existing tables")
-        
-        # Create the pitching_gamelogs table
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS pitching_gamelogs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            player_id TEXT NOT NULL,
-            date_game TEXT NOT NULL,
-            year INTEGER NOT NULL,
-            team_id TEXT,
-            opponent_id TEXT,
-            game_result TEXT,
-            innings_pitched REAL,
-            hits INTEGER,
-            runs INTEGER,
-            earned_runs INTEGER,
-            walks INTEGER,
-            strikeouts INTEGER,
-            home_runs INTEGER,
-            hit_by_pitch INTEGER,
-            era REAL,
-            fip REAL,
-            batters_faced INTEGER,
-            pitches INTEGER,
-            strikes INTEGER,
-            strikes_looking INTEGER,
-            strikes_swinging INTEGER,
-            ground_balls INTEGER,
-            fly_balls INTEGER,
-            line_drives INTEGER,
-            pop_ups INTEGER,
-            unknown_batted_balls INTEGER,
-            game_score INTEGER,
-            stolen_bases INTEGER,
-            caught_stealing INTEGER,
-            pickoffs INTEGER,
-            at_bats INTEGER,
-            doubles INTEGER,
-            triples INTEGER,
-            intentional_walks INTEGER,
-            grounded_into_double_play INTEGER,
-            sacrifice_flies INTEGER,
-            reached_on_error INTEGER,
-            win_probability_added REAL,
-            average_leverage_index REAL,
-            clutch_leverage_index REAL,
-            run_expectancy_24 REAL,
-            draftkings_points REAL,
-            fanduel_points REAL,
-            career_game_num INTEGER,
-            road_indicator INTEGER,
-            UNIQUE(player_id, date_game)
-        )
-        """)
-        
-        # Create the players table
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS players (
-            player_id TEXT PRIMARY KEY,
-            player_name TEXT,
-            last_updated TEXT
-        )
-        """)
-        
-        conn.commit()
-        logger.debug(f"Database created at {db_path}")
-        return db_path
-    
-    except sqlite3.Error as e:
-        logger.error(f"Database error: {e}")
-        return None
-    
-    finally:
-        if conn:
-            conn.close()
-
+from .common import logger, pitcher_column_mapping
 
 def store_pitcher_data(df, player_id, db_path="baseball.db", player_name=None):
-    """Store pitcher data into SQLite database"""
+    """
+    Store pitcher data into SQLite database
+    
+    Args:
+        df (DataFrame): DataFrame containing pitcher game logs
+        player_id (str): Player ID
+        db_path (str): Path to database
+        player_name (str): Player name
+        
+    Returns:
+        bool: Success or failure
+    """
     if df is None or df.empty:
         logger.warning(f"No data to store for {player_id}")
         return False
@@ -192,7 +36,7 @@ def store_pitcher_data(df, player_id, db_path="baseball.db", player_name=None):
             df_copy['player_id'] = player_id
         
         # Apply column mapping - rename columns to match database schema
-        df_copy = df_copy.rename(columns={k: v for k, v in column_mapping.items() if k in df_copy.columns})
+        df_copy = df_copy.rename(columns={k: v for k, v in pitcher_column_mapping.items() if k in df_copy.columns})
         
         # Convert numeric columns to appropriate types
         for col in df_copy.columns:
@@ -303,7 +147,17 @@ def store_pitcher_data(df, player_id, db_path="baseball.db", player_name=None):
 
 
 def update_player_name(player_id, player_name, db_path="baseball.db"):
-    """Update a player's name in the database"""
+    """
+    Update a player's name in the database
+    
+    Args:
+        player_id (str): Player ID
+        player_name (str): New player name
+        db_path (str): Path to database
+        
+    Returns:
+        bool: Success or failure
+    """
     if not player_id or not player_name:
         return False
         
@@ -339,7 +193,16 @@ def update_player_name(player_id, player_name, db_path="baseball.db"):
 
 
 def get_stored_pitcher_data(player_id, db_path="baseball.db"):
-    """Retrieve pitcher data from the database"""
+    """
+    Retrieve pitcher data from the database
+    
+    Args:
+        player_id (str): Player ID
+        db_path (str): Path to database
+        
+    Returns:
+        DataFrame: DataFrame with pitcher data
+    """
     try:
         conn = sqlite3.connect(db_path)
         query = f"SELECT * FROM pitching_gamelogs WHERE player_id = ?"
@@ -356,7 +219,15 @@ def get_stored_pitcher_data(player_id, db_path="baseball.db"):
 
 
 def get_all_pitcher_data(db_path="baseball.db"):
-    """Retrieve all pitcher data from the database"""
+    """
+    Retrieve all pitcher data from the database
+    
+    Args:
+        db_path (str): Path to database
+        
+    Returns:
+        DataFrame: DataFrame with all pitcher data
+    """
     try:
         conn = sqlite3.connect(db_path)
         query = "SELECT * FROM pitching_gamelogs"
@@ -373,7 +244,15 @@ def get_all_pitcher_data(db_path="baseball.db"):
 
 
 def get_stored_player_ids(db_path="baseball.db"):
-    """Get list of player IDs already in the database"""
+    """
+    Get list of player IDs already in the database
+    
+    Args:
+        db_path (str): Path to database
+        
+    Returns:
+        dict: Dictionary mapping player_id to player_name
+    """
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()

@@ -1,125 +1,124 @@
-# Baseball Reference Pitcher Data Scraper
+# Baseball Pitching Pipeline
 
-A modular tool for scraping MLB pitcher game logs from Baseball Reference and storing them in a SQLite database.
+A tool for scraping MLB pitcher statistics and team batting statistics, and storing them in a SQLite database.
 
-## Features
+## Overview
 
-- Scrape pitching game logs for individual or multiple MLB pitchers
-- Store data in a SQLite database for easy querying and analysis
-- Modular design with separate components for scraping, data storage, and utilities
-- Command-line interface with flexible options
-- Handles connection errors and retries with different fetching methods
+This project scrapes various baseball statistics from Baseball Reference and stores them in a structured SQLite database for analysis. The main components are:
 
-## Requirements
-
-- Python 3.9+
-- Required Python packages:
-  - scrapling
-  - pandas
-  - argparse
-
-## Installation
-
-1. Clone this repository or download the source code
-2. Install dependencies:
-
-```bash
-uv add scrapling pandas argparse
-uv run scrapling install  # Install browser dependencies
-```
-
-## Usage
-
-### Basic Usage
-
-Scrape data for a single player:
-
-```bash
-uv run python main.py --player-id snellbl01
-```
-
-Scrape data for multiple players from a CSV file:
-
-```bash
-uv run python main.py --players-file starting_pitchers_ids.csv
-```
-
-### Advanced Options
-
-Specify years to scrape:
-
-```bash
-uv run python main.py --player-id snellbl01 --years 2021 2022 2023
-```
-
-Specify database path:
-
-```bash
-uv run python main.py --player-id snellbl01 --db-path my_baseball_data.db
-```
-
-Limit number of players to process from a file:
-
-```bash
-uv run python main.py --players-file starting_pitchers_ids.csv --max-players 10
-```
+1. **Pitcher Game Logs**: Scrape individual pitcher game logs from player pages
+2. **Team Batting Stats**: Scrape team batting statistics
 
 ## Project Structure
 
-- `main.py`: Entry point with command-line interface
-- `scraper.py`: Functions for scraping data from Baseball Reference
-- `db_utils.py`: Database operations for storing and retrieving data
-- `utils.py`: Utility functions for data loading and manipulation
-
-## Database Schema
-
-The SQLite database contains the following tables:
-
-- `pitching_gamelogs`: Stores individual game statistics for pitchers
-- `players`: Tracks which players have been scraped and when
-
-## Examples
-
-### Scrape a single player and print results
-
-```python
-from scraper import scrape_player
-from db_utils import create_database, store_pitcher_data
-
-# Scrape data for Blake Snell for 2021-2023
-df = scrape_player('snellbl01', [2021, 2022, 2023])
-
-# Store in database
-create_database('baseball.db')
-store_pitcher_data(df, 'snellbl01', 'baseball.db')
+```
+pitching_pipeline/
+├── src/
+│   ├── core/
+│   │   ├── db/                     # Database package
+│   │   │   ├── __init__.py         # Package exports
+│   │   │   ├── common.py           # Shared database utilities
+│   │   │   ├── schema.py           # Database schema definitions
+│   │   │   ├── pitcher_utils.py    # Pitcher data storage/retrieval
+│   │   │   └── team_utils.py       # Team data storage/retrieval
+│   │   ├── db_manager.py           # High-level database interface
+│   │   ├── db_utils.py             # Facade importing from db package 
+│   │   ├── gamelog_scraper.py      # Scraper for pitcher game logs
+│   │   ├── player_utils.py         # Player data utilities
+│   │   └── team_stats_scraper.py   # Scraper for team batting stats
+│   ├── csv/
+│   │   ├── starting_pitchers_ids.csv  # Main input file with player IDs
+│   │   └── test_ids.csv               # Test input file with few player IDs
+│   ├── docs/
+│   │   └── README_QUERY.md            # Guide for querying the database
+│   └── scripts/
+│       ├── gamelog_scrape.py     # Script for scraping pitcher game logs
+│       └── scrape_team_stats.py  # Script for scraping team batting stats
+└── README.md                     # This file
 ```
 
-### Query data from the database
+## Database Structure
 
-```python
-import sqlite3
-import pandas as pd
+The database organization has been improved through modularization:
 
-# Connect to the database
-conn = sqlite3.connect('baseball.db')
+- `db/schema.py`: Contains database table definitions and creation logic
+- `db/pitcher_utils.py`: Functions for storing and retrieving pitcher data
+- `db/team_utils.py`: Functions for storing and retrieving team statistics
+- `db/common.py`: Shared utilities and column mapping definitions
 
-# Query all games with 10+ strikeouts
-query = """
-SELECT player_id, year, game_date, strikeouts 
-FROM pitching_gamelogs 
-WHERE strikeouts >= 10
-ORDER BY strikeouts DESC
-"""
+The original `db_utils.py` now acts as a facade that maintains backward compatibility.
 
-# Load into pandas DataFrame
-results = pd.read_sql_query(query, conn)
-print(results)
+## Usage
+
+### Scraping Pitcher Game Logs
+
+The `gamelog_scrape.py` script handles scraping pitcher game logs:
+
+```bash
+# Create a database using the full list of pitchers
+uv run src/scripts/gamelog_scrape.py
+
+# Test with a smaller list
+uv run src/scripts/gamelog_scrape.py --test
+
+# Specify a custom input file
+uv run src/scripts/gamelog_scrape.py --input-file path/to/ids.csv
+
+# Limit the number of players to scrape
+uv run src/scripts/gamelog_scrape.py --limit 10
+
+# Recreate the database (will delete existing data)
+uv run src/scripts/gamelog_scrape.py --reset-db
+
+# Specify which years to scrape
+uv run src/scripts/gamelog_scrape.py --years 2021 2022 2023
+
+# Specify database path
+uv run src/scripts/gamelog_scrape.py --db-path my_database.db
+
+# Enable verbose logging
+uv run src/scripts/gamelog_scrape.py --verbose
 ```
 
-## License
+### Scraping Team Batting Stats
 
-[MIT License](LICENSE)
+The `scrape_team_stats.py` script handles scraping team batting statistics:
 
-## Contributing
+```bash
+# Scrape team batting stats for the current year
+uv run src/scripts/scrape_team_stats.py
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+# Scrape team batting stats for specific years
+uv run src/scripts/scrape_team_stats.py --years 2021 2022 2023
+
+# Specify database path
+uv run src/scripts/scrape_team_stats.py --db-path my_database.db
+
+# Enable verbose logging
+uv run src/scripts/scrape_team_stats.py --verbose
+```
+
+## Input File Format
+
+The player ID input CSV file should contain a column named `player_id` with Baseball Reference player IDs:
+
+```
+player_id
+snellbl01
+flaheja01
+degroja01
+...
+```
+
+## Querying the Database
+
+After creating the database, you can query it using SQLite directly. See the [Database Query Guide](src/docs/README_QUERY.md) for examples and reference SQL queries.
+
+## Development
+
+This project uses the uv package manager instead of pip. To install dependencies:
+
+```bash
+uv add pandas
+uv add scrapling
+```
