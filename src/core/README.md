@@ -8,7 +8,7 @@ This directory contains the core business logic for the Baseball Pitching Pipeli
 
 The `db` package contains all database-related functionality:
 
-- `common.py`: Shared utilities and column mapping definitions
+- `column_mapping.py`: Shared utilities and column mapping definitions
 - `schema.py`: Database schema definitions
 - `pitcher_utils.py`: Functions for storing and retrieving pitcher data
 - `database_manager.py`: Unified database interface class
@@ -22,7 +22,7 @@ The `db` package contains all database-related functionality:
 ### Utilities
 
 - `player_utils.py`: Utilities for loading and processing player data
-- `db_manager.py`: High-level functions for database operations (uses the `db` package)
+- `scraper_manager.py`: High-level functions for database operations (uses the `db` package)
 
 ## Architecture
 
