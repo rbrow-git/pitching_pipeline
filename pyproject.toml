@@ -12,6 +12,7 @@ dependencies = [
     "ipykernel>=6.29.5",
     "scrapling>=0.2.98",
     "argparse>=1.4.0",
+    "mlb-statsapi>=1.9.0",
 ]
 
 [build-system]
